@@ -1,8 +1,8 @@
 [package]
-authors = ["the rp-rs team"]
+authors = ["9names"]
 edition = "2018"
 readme = "README.md"
-name = "rp2040-project-template"
+name = "piicodev-demo"
 version = "0.1.0"
 resolver = "2"
 
@@ -19,6 +19,11 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 # We're using a Pico by default on this template
 pico = { git = "https://github.com/rp-rs/rp-hal", branch="main"}
 
+bme280 = { git = "https://github.com/David-OConnor/bme280-rs", branch="borrow_delay" }
+tmp117 = { git = "https://github.com/Beaudidly/tmp117" }
+veml6030 = "0.1.2"
+mpu6050 = "0.1.4"
+shared-bus = "0.2.2"
 # but you can use any BSP. Uncomment this to use the pro_micro_rp2040 BSP instead
 # pro_micro_rp2040 = { git = "https://github.com/rp-rs/rp-hal", branch="main"}
 

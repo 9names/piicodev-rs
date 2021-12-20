@@ -1,14 +1,14 @@
-//! Blinks the LED on a Pico board
-//!
-//! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
+//! Demo getting readings from some piicodev sensor boards
 #![no_std]
 #![no_main]
 
+use bme280::BME280;
 use cortex_m_rt::entry;
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
 use embedded_time::fixed_point::FixedPoint;
+use embedded_time::rate::Extensions;
+use mpu6050::Mpu6050;
 use panic_probe as _;
 
 // Provide an alias for our BSP so we can switch targets quickly.
@@ -21,7 +21,10 @@ use bsp::hal::{
     pac,
     sio::Sio,
     watchdog::Watchdog,
+    I2C,
 };
+use tmp117::TMP117;
+use veml6030::Veml6030;
 
 #[entry]
 fn main() -> ! {
@@ -31,10 +34,8 @@ fn main() -> ! {
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
-    // External high-speed crystal on the pico board is 12Mhz
-    let external_xtal_freq_hz = 12_000_000u32;
     let clocks = init_clocks_and_plls(
-        external_xtal_freq_hz,
+        bsp::XOSC_CRYSTAL_FREQ,
         pac.XOSC,
         pac.CLOCKS,
         pac.PLL_SYS,
@@ -54,15 +55,100 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
-    let mut led_pin = pins.led.into_push_pull_output();
+    let i2c = I2C::i2c0(
+        pac.I2C0,
+        pins.gpio8.into_mode(), // sda
+        pins.gpio9.into_mode(), // scl
+        400.kHz(),
+        &mut pac.RESETS,
+        125_000_000.Hz(),
+    );
+
+    let bus = shared_bus::BusManagerSimple::new(i2c);
+
+    let mut mpu = Mpu6050::new(bus.acquire_i2c());
+    match mpu.init(&mut delay) {
+        Ok(_) => println!("MPU6050 initialised successfully"),
+        Err(_) => println!("Failed to initialise MPU6050"),
+    }
+
+    let mut bme = BME280::new_secondary(bus.acquire_i2c());
+    match bme.init(&mut delay) {
+        Ok(_) => println!("BME280 initialised successfully"),
+        Err(_) => println!("Failed to initialise BME280"),
+    }
+
+    let mut veml = Veml6030::new(bus.acquire_i2c(), veml6030::SlaveAddr::default());
+    match veml.enable() {
+        Ok(_) => println!("VEML6030 initialised successfully"),
+        Err(_) => println!("Failed to initialise VEML6030"),
+    }
+
+    let mut tmp117 = TMP117::new_default(bus.acquire_i2c());
+    // TMP117 doesn't have an init function, so read a sample to check if it's okay
+    if let Ok(_temperature) = tmp117.read() {
+        println!("TMP117 initialised successfully")
+    } else {
+        println!("Failed to initialise TMP117");
+    }
 
     loop {
-        info!("on!");
-        led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        info!("off!");
-        led_pin.set_low().unwrap();
-        delay.delay_ms(500);
+        if let Ok(lux) = veml.read_lux() {
+            println!(
+                "- VEML6030 ambient light sensor -
+    light reading {:?}
+",
+                lux
+            )
+        } else {
+            println!("VEML6030 sample failed")
+        }
+
+        if let Ok(temperature) = tmp117.read() {
+            println!(
+                "- TMP117 precision temperature sensor -
+    temp: {:?}c
+",
+                temperature
+            )
+        } else {
+            println!("TMP117 sample failed")
+        }
+
+        if let Ok(environment) = bme.measure(&mut delay) {
+            println!(
+                "- BME280 environmental monitor -
+    Relative Humidity = {}%
+    Temperature = {} deg C
+    Pressure = {} pascals
+",
+                environment.humidity, environment.temperature, environment.pressure
+            );
+        } else {
+            println!("BME280 sample failed")
+        }
+
+        if let (Some(rc), Some(temp), Some(gyro), Some(acc)) = (
+            mpu.get_acc_angles().ok(),
+            mpu.get_temp().ok(),
+            mpu.get_gyro().ok(),
+            mpu.get_acc().ok(),
+        ) {
+            println!(
+                "- MPU6050 motion sensor -
+    roll/pitch: {:?}/{:?}
+    temperature: {:?}c
+    gyro [{:?}, {:?}, {:?}]
+    acc [{:?}, {:?}, {:?}]
+",
+                rc.x, rc.y, temp, gyro.x, gyro.y, gyro.z, acc.x, acc.y, acc.z
+            );
+        } else {
+            println!("MPU6050 sample failed")
+        }
+
+        // Only sample every 10 seconds to avoid spamming the console
+        delay.delay_ms(10000);
     }
 }
 
