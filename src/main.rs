@@ -95,7 +95,8 @@ fn main() -> ! {
     loop {
         if let Ok(lux) = veml.read_lux() {
             println!(
-                "- VEML6030 ambient light sensor -
+                "
+- VEML6030 ambient light sensor -
     light reading {:?}
 ",
                 lux
@@ -106,9 +107,9 @@ fn main() -> ! {
 
         if let Ok(temperature) = tmp117.read() {
             println!(
-                "- TMP117 precision temperature sensor -
-    temp: {:?}c
-",
+                "
+- TMP117 precision temperature sensor -
+    temp: {:02?}c",
                 temperature
             )
         } else {
@@ -117,11 +118,11 @@ fn main() -> ! {
 
         if let Ok(environment) = bme.measure(&mut delay) {
             println!(
-                "- BME280 environmental monitor -
+                "
+- BME280 environmental monitor -
     Relative Humidity = {}%
     Temperature = {} deg C
-    Pressure = {} pascals
-",
+    Pressure = {} pascals",
                 environment.humidity, environment.temperature, environment.pressure
             );
         } else {
@@ -135,12 +136,12 @@ fn main() -> ! {
             mpu.get_acc().ok(),
         ) {
             println!(
-                "- MPU6050 motion sensor -
+                "
+- MPU6050 motion sensor -
     roll/pitch: {:?}/{:?}
     temperature: {:?}c
     gyro [{:?}, {:?}, {:?}]
-    acc [{:?}, {:?}, {:?}]
-",
+    acc [{:?}, {:?}, {:?}]",
                 rc.x, rc.y, temp, gyro.x, gyro.y, gyro.z, acc.x, acc.y, acc.z
             );
         } else {
